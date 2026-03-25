@@ -1,92 +1,173 @@
-# ERC-8203 Reference Implementation
+# ERC-8203: Agent Off-Chain Conditional Settlement
 
-Reference implementation for [ERC-8203: Agent Off-Chain Conditional Settlement Extension Interface](https://ethereum-magicians.org/t/erc-8203-agent-off-chain-conditional-settlement-extension-interface/28041).
+> Minimal settlement envelope for autonomous agents. Lock funds with conditions, prove completion off-chain, settle on-chain only when there's a dispute. Happy path is zero gas.
 
-ERC-8203 defines a minimal settlement envelope for autonomous agents operating over state channels. Agents lock funds with conditions, prove completion off-chain, and settle on-chain only when there's a dispute. Happy path is zero gas.
+[![CI](https://github.com/Aboudjem/erc-8203-ref/actions/workflows/test.yml/badge.svg)](https://github.com/Aboudjem/erc-8203-ref/actions/workflows/test.yml)
+[![Solidity](https://img.shields.io/badge/Solidity-%5E0.8.20-blue)](https://soliditylang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![ERC-8203](https://img.shields.io/badge/ERC-8203-purple)](https://ethereum-magicians.org/t/erc-8203-agent-off-chain-conditional-settlement-extension-interface/28041)
 
-## What's in here
+---
+
+## The Problem
+
+AI agents are transacting on-chain. 85,000+ agents registered via ERC-8004. Billions in agent-to-agent payments ahead.
+
+But there's no standard way for agents to settle conditional obligations. Today:
+
+- **On-chain settlement per transaction** -- costs ~$443k/day for 1M agent interactions on L1
+- **No shared envelope** -- every framework invents its own lock/prove/settle flow
+- **No proof flexibility** -- settling an HTLC requires a specific proof format, can't use a ZK proof or oracle attestation instead
+
+Stripe launched their centralized Machine Payments Protocol on March 18, 2026. The decentralized alternative needs a standard.
+
+## The Solution
+
+ERC-8203 adds a **conditional settlement extension** to state channel frameworks like ERC-7824.
 
 ```
-src/
-  IAgentConditionalSettlement.sol   -- interface + structs (ConditionalLock, SettlementProofRef, ClaimRelayRequest)
-  AgentConditionalSettlement.sol    -- reference implementation
-  MockProofVerifier.sol             -- mock verifier for testing
-test/
-  AgentConditionalSettlement.t.sol  -- 24 tests covering all spec requirements
+Agent A                          Agent B
+   |                                |
+   |-- Lock funds with condition -->|
+   |                                |
+   |   [off-chain work happens]     |
+   |                                |
+   |<-- Proof of completion --------|
+   |                                |
+   |-- Verify proof, release funds  |
+   |                                |
+   [zero gas in happy path]
 ```
 
-## Architecture
+Three structs. Five functions. That's the whole interface.
 
-ERC-8203 separates **what** needs to be proven from **how** it's proven using two orthogonal axes:
+## How It Works
 
-**Condition types** (proposition semantics):
-- `HTLC` -- hash time lock
-- `TIMELOCK` -- time-based
-- `THRESHOLD_APPROVAL` -- multisig-style threshold
-- `EXTERNAL_ASSERTION` -- external oracle/entity
-- `COMPOSITE` -- combination of above
+### Orthogonal Taxonomy
 
-**Proof types** (verification pathway):
-- `RECEIPT_ROOT` -- merkle tree proof
-- `ZK_PROOF` -- zero-knowledge proof
-- `ORACLE_ATTESTATION` -- oracle attestation
-- `MULTISIG_ATTESTATION` -- threshold signatures
-- `TEE_ATTESTATION` -- trusted execution environment
+ERC-8203's core insight: **what** needs to be proven and **how** it's proven are independent concerns.
 
-Any condition can be proven via any proof type. An HTLC can be settled with a ZK proof. A TIMELOCK can be verified by an oracle attestation. No artificial coupling.
+```
+                    PROOF TYPES (verification pathway)
+                    +-----------+---------+--------+-----------+------+
+                    | RECEIPT   | ZK      | ORACLE | MULTISIG  | TEE  |
+                    | ROOT      | PROOF   | ATTEST | ATTEST    | ATT  |
+     +--------------+-----------+---------+--------+-----------+------+
+C    | HTLC         |     *     |    *    |   *    |     *     |  *   |
+O    | TIMELOCK     |     *     |    *    |   *    |     *     |  *   |
+N    | THRESHOLD    |     *     |    *    |   *    |     *     |  *   |
+D    | EXTERNAL     |     *     |    *    |   *    |     *     |  *   |
+     | COMPOSITE    |     *     |    *    |   *    |     *     |  *   |
+     +--------------+-----------+---------+--------+-----------+------+
 
-## Key design decisions
+     Any cell is a valid combination. No artificial coupling.
+```
 
-- **Mandatory host-state binding** -- `hostStateHash` prevents cross-host replay attacks
-- **ERC-5267** -- uses `eip712Domain()` for domain discovery instead of custom `domainSeparator()`
-- **Timestamp-based expiry** -- uses `block.timestamp`, not block numbers
-- **Verifier as address** -- pluggable on-chain verifier contracts, not opaque bytes32
-- **No RELAY_CLAIM proof type** -- relay fees handled separately via `maxRelayFee` field
+An HTLC settled with a ZK proof. A timelock verified by an oracle. A composite condition proven via merkle receipt. All valid.
 
-## Quick start
+### Settlement Flow
+
+```
+createLock()           -- Agent locks funds with a condition + host-state binding
+settleConditional()    -- Counterparty submits proof, funds release if valid
+refundConditional()    -- Lock expired? Initiator gets funds back automatically
+lockStatus()           -- On-chain view of lock state (Locked/Settled/Refunded)
+supportsConditionType()-- Can this contract handle HTLC? TIMELOCK? COMPOSITE?
+supportsProofType()    -- Can it verify ZK proofs? Oracle attestations? TEE?
+```
+
+### Key Design Decisions
+
+| Decision | Why |
+|----------|-----|
+| **Mandatory host-state binding** | `hostStateHash` prevents cross-host replay attacks |
+| **ERC-5267 domain discovery** | Standard `eip712Domain()` instead of custom `domainSeparator()` |
+| **Timestamp-based expiry** | `block.timestamp` not block numbers. Predictable across chains |
+| **Verifier as address** | Pluggable on-chain verifier contracts. Swap verification strategies per protocol |
+| **No RELAY_CLAIM proof type** | Relay fees handled via `maxRelayFee` field. Cleaner separation |
+| **Off-chain happy path** | Zero gas when both parties agree. On-chain only for disputes |
+
+---
+
+## Quick Start
 
 ```bash
-# clone
 git clone https://github.com/Aboudjem/erc-8203-ref.git
 cd erc-8203-ref
-
-# install deps
 forge install
-
-# build
 forge build
-
-# test
 forge test -vvv
 ```
 
-## Test coverage
+## Project Structure
 
-24 tests covering:
+```
+src/
+  IAgentConditionalSettlement.sol   -- Interface: 3 structs, 5 functions, 2 events
+  AgentConditionalSettlement.sol    -- Reference implementation
+  MockProofVerifier.sol             -- Mock verifier for testing
+test/
+  AgentConditionalSettlement.t.sol  -- 24 test cases
+```
 
-| Category | Tests | What's tested |
-|----------|-------|---------------|
-| Core lifecycle | 1-8 | create, settle, refund, double-settle prevention, expiry enforcement |
-| Condition types | 9-10 | all 5 canonical types supported, old types rejected |
-| Proof types | 13-14 | all 5 proof types discovered, RELAY_CLAIM rejected |
-| Host-state binding | 15-17 | zero rejected, mismatch rejected, valid settle |
-| Relay fee paths | 18-19 | maxRelayFee > 0 and == 0 |
-| Cross condition/proof | 20-24 | HTLC+ZK, TIMELOCK+ORACLE, THRESHOLD+MULTISIG, EXTERNAL+TEE, COMPOSITE+RECEIPT |
-| Standards | 11-12 | ERC-165 interface detection, lockId derivation, ERC-5267 domain |
+## Test Coverage
 
-## Related standards
+| Category | Tests | What's Verified |
+|----------|-------|-----------------|
+| **Core lifecycle** | 1-8 | Create, settle, refund, double-settle prevention, expiry enforcement |
+| **Condition types** | 9-10 | All 5 canonical types supported, old types rejected |
+| **Proof types** | 13-14 | All 5 proof types discoverable, RELAY_CLAIM rejected |
+| **Host-state binding** | 15-17 | Zero rejected, mismatch rejected, valid settle passes |
+| **Relay fee paths** | 18-19 | `maxRelayFee > 0` (relay pays gas) and `== 0` (meta-tx) |
+| **Cross combos** | 20-24 | HTLC+ZK, TIMELOCK+ORACLE, THRESHOLD+MULTISIG, EXTERNAL+TEE, COMPOSITE+RECEIPT |
+| **Standards** | 11-12 | ERC-165 detection, lockId derivation, ERC-5267 domain |
 
-- [ERC-8203 spec](https://ethereum-magicians.org/t/erc-8203-agent-off-chain-conditional-settlement-extension-interface/28041) -- the standard this implements
-- [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) -- Trustless Agents (identity/reputation layer)
-- [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) -- Agentic Commerce (job escrow, complements 8203)
-- [ERC-7824](https://ethereum-magicians.org/t/erc-7824-state-channels-framework/22566) -- State Channels Framework (host framework)
-- [ERC-5267](https://eips.ethereum.org/EIPS/eip-5267) -- EIP-712 Domain Discovery
+```
+24 passed | 0 failed | 0 skipped
+```
+
+---
+
+## Where ERC-8203 Fits
+
+```
++------------------+     +------------------+     +-------------------+
+|    ERC-8004      |     |    ERC-8183      |     |    ERC-7824       |
+|  Agent Identity  |     | Agentic Commerce |     | State Channels    |
+|  & Reputation    |     |   (Job Escrow)   |     |   Framework       |
++--------+---------+     +--------+---------+     +---------+---------+
+         |                        |                         |
+         |    WHO is transacting  |  WHAT is the job        |  WHERE state lives
+         |                        |                         |
+         +------------+-----------+-----------+-------------+
+                      |                       |
+              +-------v-----------------------v-------+
+              |           ERC-8203                     |
+              |  Conditional Settlement Extension      |
+              |                                        |
+              |  HOW agents lock, prove, and settle    |
+              +----------------------------------------+
+```
+
+## Related Standards
+
+| Standard | Relationship |
+|----------|-------------|
+| [ERC-8203 spec](https://ethereum-magicians.org/t/erc-8203-agent-off-chain-conditional-settlement-extension-interface/28041) | The standard this implements |
+| [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) | Agent identity/reputation. WHO is transacting |
+| [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) | Agentic commerce. Job escrow for discrete work |
+| [ERC-7824](https://ethereum-magicians.org/t/erc-7824-state-channels-framework/22566) | State channel framework. Host for conditional locks |
+| [ERC-5267](https://eips.ethereum.org/EIPS/eip-5267) | EIP-712 domain discovery |
+
+---
 
 ## Status
 
-This is a reference implementation for spec clarity. Not audited. Not for production use without review.
+Reference implementation for spec clarity.
 
-Matches the March 25, 2026 spec revision (orthogonal taxonomy, 10 changes).
+**Not audited. Not for production use without review.**
+
+Matches the March 25, 2026 spec revision (orthogonal taxonomy).
 
 ## License
 
