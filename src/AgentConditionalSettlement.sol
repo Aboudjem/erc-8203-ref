@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IAgentConditionalSettlementExtension, ConditionalLock, SettlementProofRef} from "./IAgentConditionalSettlement.sol";
+import {
+    IAgentConditionalSettlementExtension,
+    ConditionalLock,
+    SettlementProofRef
+} from "./IAgentConditionalSettlement.sol";
 import {IProofVerifier} from "./MockProofVerifier.sol";
 
 contract AgentConditionalSettlement is IAgentConditionalSettlementExtension {
@@ -33,21 +37,23 @@ contract AgentConditionalSettlement is IAgentConditionalSettlementExtension {
     string constant EIP712_VERSION = "1";
 
     function deriveLockId(ConditionalLock calldata lock) public pure returns (bytes32) {
-        return keccak256(abi.encode(
-            lock.channelId,
-            lock.initiator,
-            lock.responder,
-            lock.assetId,
-            lock.amount,
-            lock.maxRelayFee,
-            lock.expiry,
-            lock.conditionType,
-            lock.conditionCommitment,
-            lock.applicationCommitment,
-            lock.escrowCommitment,
-            lock.hostStateHash,
-            lock.channelNonce
-        ));
+        return keccak256(
+            abi.encode(
+                lock.channelId,
+                lock.initiator,
+                lock.responder,
+                lock.assetId,
+                lock.amount,
+                lock.maxRelayFee,
+                lock.expiry,
+                lock.conditionType,
+                lock.conditionCommitment,
+                lock.applicationCommitment,
+                lock.escrowCommitment,
+                lock.hostStateHash,
+                lock.channelNonce
+            )
+        );
     }
 
     function createLock(ConditionalLock calldata lock) external {
@@ -96,20 +102,14 @@ contract AgentConditionalSettlement is IAgentConditionalSettlementExtension {
     }
 
     function supportsConditionType(bytes32 conditionType) external pure override returns (bool) {
-        return conditionType == COND_HTLC
-            || conditionType == COND_TIMELOCK
-            || conditionType == COND_THRESHOLD_APPROVAL
-            || conditionType == COND_EXTERNAL_ASSERTION
-            || conditionType == COND_COMPOSITE;
+        return conditionType == COND_HTLC || conditionType == COND_TIMELOCK || conditionType == COND_THRESHOLD_APPROVAL
+            || conditionType == COND_EXTERNAL_ASSERTION || conditionType == COND_COMPOSITE;
     }
 
     /// @notice Symmetric discovery for proof types (change 3)
     function supportsProofType(bytes32 proofType) external pure override returns (bool) {
-        return proofType == PROOF_RECEIPT_ROOT
-            || proofType == PROOF_ZK_PROOF
-            || proofType == PROOF_ORACLE_ATTESTATION
-            || proofType == PROOF_MULTISIG_ATTESTATION
-            || proofType == PROOF_TEE_ATTESTATION;
+        return proofType == PROOF_RECEIPT_ROOT || proofType == PROOF_ZK_PROOF || proofType == PROOF_ORACLE_ATTESTATION
+            || proofType == PROOF_MULTISIG_ATTESTATION || proofType == PROOF_TEE_ATTESTATION;
     }
 
     /// @notice ERC-5267 domain discovery (change 9)
@@ -139,7 +139,6 @@ contract AgentConditionalSettlement is IAgentConditionalSettlementExtension {
     }
 
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        return interfaceId == type(IAgentConditionalSettlementExtension).interfaceId
-            || interfaceId == 0x01ffc9a7; // ERC-165
+        return interfaceId == type(IAgentConditionalSettlementExtension).interfaceId || interfaceId == 0x01ffc9a7; // ERC-165
     }
 }

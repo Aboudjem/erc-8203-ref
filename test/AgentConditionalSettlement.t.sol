@@ -4,7 +4,11 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {AgentConditionalSettlement} from "../src/AgentConditionalSettlement.sol";
 import {MockProofVerifier} from "../src/MockProofVerifier.sol";
-import {IAgentConditionalSettlementExtension, ConditionalLock, SettlementProofRef} from "../src/IAgentConditionalSettlement.sol";
+import {
+    IAgentConditionalSettlementExtension,
+    ConditionalLock,
+    SettlementProofRef
+} from "../src/IAgentConditionalSettlement.sol";
 
 contract AgentConditionalSettlementTest is Test {
     AgentConditionalSettlement acs;
@@ -40,12 +44,23 @@ contract AgentConditionalSettlementTest is Test {
     }
 
     function _lockId(ConditionalLock memory lock) internal pure returns (bytes32) {
-        return keccak256(abi.encode(
-            lock.channelId, lock.initiator, lock.responder, lock.assetId,
-            lock.amount, lock.maxRelayFee, lock.expiry, lock.conditionType,
-            lock.conditionCommitment, lock.applicationCommitment,
-            lock.escrowCommitment, lock.hostStateHash, lock.channelNonce
-        ));
+        return keccak256(
+            abi.encode(
+                lock.channelId,
+                lock.initiator,
+                lock.responder,
+                lock.assetId,
+                lock.amount,
+                lock.maxRelayFee,
+                lock.expiry,
+                lock.conditionType,
+                lock.conditionCommitment,
+                lock.applicationCommitment,
+                lock.escrowCommitment,
+                lock.hostStateHash,
+                lock.channelNonce
+            )
+        );
     }
 
     function _defaultProofRef(ConditionalLock memory lock) internal view returns (SettlementProofRef memory) {
@@ -64,14 +79,8 @@ contract AgentConditionalSettlementTest is Test {
 
     // 1. ERC-5267 eip712Domain (replaces custom domainSeparator)
     function test_eip712Domain() public view {
-        (
-            bytes1 fields,
-            string memory name,
-            string memory version,
-            uint256 chainId,
-            address verifyingContract,
-            ,
-        ) = acs.eip712Domain();
+        (bytes1 fields, string memory name, string memory version, uint256 chainId, address verifyingContract,,) =
+            acs.eip712Domain();
         assertEq(fields, hex"0f");
         assertEq(keccak256(bytes(name)), keccak256("AgentConditionalSettlement"));
         assertEq(keccak256(bytes(version)), keccak256("1"));

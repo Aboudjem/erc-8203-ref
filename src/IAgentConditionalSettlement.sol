@@ -5,25 +5,25 @@ struct ConditionalLock {
     bytes32 channelId;
     address initiator;
     address responder;
-    bytes32 assetId;          // deterministic mapping to host custody (change 5)
+    bytes32 assetId; // deterministic mapping to host custody (change 5)
     uint256 amount;
-    uint256 maxRelayFee;      // relay fee field (change 6 — no RELAY_CLAIM proof type)
-    uint256 expiry;           // timestamp-based, not block number (change 4)
-    bytes32 conditionType;    // proposition semantics (change 1)
+    uint256 maxRelayFee; // relay fee field (change 6 — no RELAY_CLAIM proof type)
+    uint256 expiry; // timestamp-based, not block number (change 4)
+    bytes32 conditionType; // proposition semantics (change 1)
     bytes32 conditionCommitment;
     bytes32 applicationCommitment;
     bytes32 escrowCommitment;
-    bytes32 hostStateHash;    // host-state binding — mandatory (change 2)
+    bytes32 hostStateHash; // host-state binding — mandatory (change 2)
     uint256 channelNonce;
 }
 
 struct SettlementProofRef {
     bytes32 channelId;
     bytes32 lockId;
-    bytes32 proofType;        // verification pathway — orthogonal to conditionType (change 1)
+    bytes32 proofType; // verification pathway — orthogonal to conditionType (change 1)
     bytes32 settlementRoot;
     bytes32 proofDigest;
-    address verifier;         // on-chain address, not bytes32 (change 4)
+    address verifier; // on-chain address, not bytes32 (change 4)
     bytes32 auxDataHash;
 }
 
@@ -36,23 +36,22 @@ struct ClaimRelayRequest {
     uint256 deadline;
     bytes32 proofType;
     bytes32 proofDigest;
-    bytes32 hostStateHash;    // host-state binding for relay path too
+    bytes32 hostStateHash; // host-state binding for relay path too
     uint256 nonce;
 }
 
 interface IAgentConditionalSettlementExtension {
-    enum LockStatus { None, Locked, Settled, Refunded }
+    enum LockStatus {
+        None,
+        Locked,
+        Settled,
+        Refunded
+    }
 
     event ConditionalLockSettled(
-        bytes32 indexed channelId,
-        bytes32 indexed lockId,
-        bytes32 indexed proofType,
-        bytes32 proofDigest
+        bytes32 indexed channelId, bytes32 indexed lockId, bytes32 indexed proofType, bytes32 proofDigest
     );
-    event ConditionalLockRefunded(
-        bytes32 indexed channelId,
-        bytes32 indexed lockId
-    );
+    event ConditionalLockRefunded(bytes32 indexed channelId, bytes32 indexed lockId);
 
     function settleConditional(
         bytes32 channelId,
