@@ -36,9 +36,13 @@ struct ClaimRelayRequest {
     uint256 deadline;
     bytes32 proofType;
     bytes32 proofDigest;
+    address verifier; // verifier binding so relay cannot substitute on assembly (xrqin, post #15)
     bytes32 hostStateHash; // host-state binding for relay path too
     uint256 nonce;
 }
+
+// EIP-712 type string for off-chain signing of ClaimRelayRequest
+// keccak256("ClaimRelayRequest(bytes32 channelId,bytes32 lockId,bytes32 escrowCommitment,bytes32 outputCommitmentHash,uint256 maxRelayFee,uint256 deadline,bytes32 proofType,bytes32 proofDigest,address verifier,bytes32 hostStateHash,uint256 nonce)")
 
 interface IAgentConditionalSettlementExtension {
     enum LockStatus {
